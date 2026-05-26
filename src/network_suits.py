@@ -83,6 +83,8 @@ class Network:
             # evaluate on test data
             stats = self.eval(test_data, metric_fs)
             metrics.append(stats)
+            if stop_f(metrics):
+                break
 
             if verbose:
                 print(f"\rTraining {(i + 1)} / {its}: {time.time() - t1} with")

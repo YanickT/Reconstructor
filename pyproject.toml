@@ -1,0 +1,83 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reconstruction-networks"
+version = "0.1.0"
+description = "Layer-wise reconstruction networks for analyzing information flow in neural networks."
+readme = "README.md"
+requires-python = ">=3.10"
+license = { text = "Custom Non-Commercial Research License. No patent license granted." }
+
+authors = [
+    { name = "Yanick", email = "yanick.thurn@uni-wuerzburg.de" }
+]
+
+keywords = [
+    "neural-networks",
+    "reconstruction",
+    "information-flow",
+    "deep-learning",
+    "pytorch",
+    "criticallity",
+    "trainability",
+    "entropy"
+]
+
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Operating System :: OS Independent",
+    "License :: Other/Proprietary License"
+]
+
+dependencies = [
+    "torch>=2.0",
+    "numpy>=1.23",
+    "einops>=0.6"
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "ruff>=0.4",
+    "mypy>=1.0",
+    "build>=1.0",
+    "twine>=5.0"
+]
+
+notebooks = [
+    "matplotlib>=3.7",
+    "jupyter>=1.0"
+]
+
+[project.urls]
+Homepage = "https://github.com/YanickT/reconstruction-networks"
+Repository = "https://github.com/YanickT/reconstruction-networks"
+Issues = "https://github.com/YanickT/reconstruction-networks/issues"
+
+[tool.setuptools]
+package-dir = { "" = "." }
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.ruff]
+line-length = 120
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B"]
+ignore = []
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = true
+warn_unused_configs = true

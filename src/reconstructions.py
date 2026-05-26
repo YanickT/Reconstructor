@@ -4,10 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import src.components as components
-import src.util as util
-
-from src.components import Parallel, PosEncoding
+import components as components
+from src.components import Parallel
 
 WEIGHT_LAYERS = (
     nn.Identity,
