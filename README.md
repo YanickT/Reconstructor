@@ -29,18 +29,6 @@ cd Reconstructor
 pip install -e .
 ```
 
-If no `pyproject.toml` or `setup.py` exists yet, use the source folder directly:
-
-```bash
-export PYTHONPATH=$PWD:$PYTHONPATH
-```
-
-Required dependencies:
-
-```bash
-pip install torch numpy einops
-```
-
 ## Citation
 This package is intended for experiments on information flow, representation collapse, and trainability in deep neural networks. 
 Please cite
