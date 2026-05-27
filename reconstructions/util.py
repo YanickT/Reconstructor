@@ -1,5 +1,5 @@
 from typing import Tuple
-from components import Parallel
+from reconstructions.components import Parallel
 import torch
 import torch.nn as nn
 import numpy as np

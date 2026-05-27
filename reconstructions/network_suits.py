@@ -207,7 +207,7 @@ class ContraNetwork:
                 continue
             opt.load_state_dict(opt_dict)
 
-    def train(self, train_data: Iterable, its: int = 1, verbose: bool = True):
+    def train(self, train_data: Iterable, its: int = 1, verbose: bool = True, steps=None):
         """
         Train all reconstruction networks
         :param train_data: Iterable = Training data
@@ -218,14 +218,14 @@ class ContraNetwork:
 
         self.set_train_mode()
         indices_flag = False
-
+        c_steps = 0
         for i in range(its):
 
             if verbose:
                 print(f"\nEpoch: {i} / {its}")
 
             for counter, (inp, _) in enumerate(train_data):
-                print(f"\r{counter} / {len(train_data)}", end="")
+                # print(f"\r{counter} / {len(train_data)}", end="")
                 x = inp.to(self.device)
 
                 for f, c, opt in zip(self.net, self.conet, self.optimiers):
@@ -252,7 +252,12 @@ class ContraNetwork:
                     else:
                         # every other case
                         if self.scaler is None:
-                            loss = torch.nn.functional.mse_loss(c(x_), x)
+                            try:
+                                loss = torch.nn.functional.mse_loss(c(x_), x)
+                            except Exception as e:
+                                print(f)
+                                print(c)
+                                raise e
                         else:
                             with torch.amp.autocast('cuda'):
                                 loss = torch.nn.functional.mse_loss(c(x_), x)
@@ -271,6 +276,12 @@ class ContraNetwork:
 
                     # override old x
                     x = x_
+
+                if steps is not None:
+                    c_steps += 1
+                    if c_steps > steps:
+                        print(f"\nTraining done in {time.time() - t1}s")
+                        return
 
         if verbose:
             print(f"\nTraining done in {time.time() - t1}s")

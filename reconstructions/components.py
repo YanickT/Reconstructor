@@ -79,15 +79,19 @@ class Cut(nn.Module):
     Cutting layer for removing additional padding artifacts
     """
 
-    def __init__(self, cut: str = "both"):
+    def __init__(self, cut: str = "both", d: int = 2, c: int = 1):
         """
         Initialize cutting layer
         :param cut: str = decides where to cut. Options are {"both", "end"}
+        :param d: int = number of dimensions to cut
+        :param c: int = size to cut
         """
         super().__init__()
         if not (cut in ["both", "end"]):
             raise AttributeError(f"Unknown cut keyword {self.cut}")
         self.cut = cut
+        self.d = d
+        self.c = c
 
     def forward(self, x):
         """
@@ -95,9 +99,23 @@ class Cut(nn.Module):
         :param x: input to that layer
         :return: Cut input
         """
-        if self.cut == "both":
-            return x[:, :, 1:-1, 1:-1]
-        return x[:, :, :-1, :-1]
+        if self.d == 1:
+            if self.cut == "both":
+                return x[:, :, 1:-1]
+            return x[:, :, :-1]
+
+        elif self.d == 2:
+            if self.cut == "both":
+                return x[:, :, 1:-1, 1:-1]
+            return x[:, :, :-1, :-1]
+
+        elif self.d == 3:
+            if self.cut == "both":
+                return x[:, :, 1:-1, 1:-1, 1:-1]
+            return x[:, :, :-1, :-1, :-1]
+
+        else:
+            raise NotImplementedError(f"Cutting for {self.d}D is not yet defined")
 
 
 ########################################################################################################################

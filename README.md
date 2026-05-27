@@ -1,17 +1,17 @@
-# Reconstruction Networks
+<p align="center">
+  <img src="images/logo.png" alt="Project logo" width="150">
+</p>
+
+
+# Reconstructions
 
 PyTorch utilities for constructing and training layer-wise reconstruction networks. The package takes a forward network, derives a corresponding set of approximate inverse modules, trains these inverse modules locally, and then uses them to reconstruct the input from intermediate representations.
 
 The intended use case is the analysis of information accessibility in neural networks: if the representation after a layer still contains input-relevant structure, a reconstruction cascade with comparable local complexity should be able to recover it. If reconstructions collapse, become class-agnostic, or converge toward dataset-level averages, this indicates that the corresponding representation no longer makes the original information easily accessible to downstream layers.
 
-
-## Development notes
-Recommended next cleanup steps before publication:
-1. Expose a package name.
-3. Add an example notebook for MNIST/CIFAR-style reconstruction cascades.
-
-
 ## Typical workflow
+The ```example.ipynb```.notebook provides code examples for MLPs on MNIST and CNNs on CIFAR10. 
+The general workflow is as follows:
 1. Define a normal PyTorch model.
 2. Pass an example batch to `get_conet_layout` to derive reconstruction-compatible forward blocks and inverse blocks.
 3. Wrap both block lists in `ContraNetwork`.
@@ -24,8 +24,8 @@ Recommended next cleanup steps before publication:
 This repository is currently structured as source files rather than a fully packaged PyPI project. A minimal local setup is:
 
 ```bash
-git clone <repository-url>
-cd <repository-name>
+git clone https://github.com/YanickT/Reconstructor
+cd Reconstructor
 pip install -e .
 ```
 

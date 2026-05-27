@@ -4,8 +4,8 @@ import numpy as np
 import torch
 import torch.nn as nn
 
-import components as components
-from src.components import Parallel
+import reconstructions.components as components
+from reconstructions.components import Parallel
 
 WEIGHT_LAYERS = (
     nn.Identity,
@@ -20,12 +20,21 @@ WEIGHT_LAYERS = (
     nn.MaxPool1d,
     nn.MaxPool2d,
     nn.MaxPool3d,
+    nn.AvgPool1d,
+    nn.AvgPool2d,
+    nn.AvgPool3d,
     nn.AdaptiveAvgPool1d,
     nn.AdaptiveAvgPool2d,
     nn.AdaptiveAvgPool3d,
 
     components.PosEncoding,
     components.Attention,
+)
+
+PADDING_LAYERS = (
+    nn.CircularPad3d,
+    nn.CircularPad2d,
+    nn.CircularPad1d
 )
 
 CC = {
@@ -37,7 +46,11 @@ CC = {
 CA = {
     nn.AdaptiveAvgPool1d: nn.ConvTranspose1d,
     nn.AdaptiveAvgPool2d: nn.ConvTranspose2d,
-    nn.AdaptiveAvgPool3d: nn.ConvTranspose3d
+    nn.AdaptiveAvgPool3d: nn.ConvTranspose3d,
+
+    nn.AvgPool1d: nn.ConvTranspose1d,
+    nn.AvgPool2d: nn.ConvTranspose2d,
+    nn.AvgPool3d: nn.ConvTranspose3d,
 }
 
 CCINV = {v: k for k, v in CC.items()}
@@ -78,6 +91,8 @@ def get_cuts(rmodule: nn.Module, dims: List[Tuple[int]]):
         c = rmodule.convtr
         os = ((dims[-2][-1] - 1) * c.stride[-1] - 2 * c.padding[-1] +
               c.dilation[-1] * (c.kernel_size[-1] - 1) + c.output_padding[-1] + 1)
+    elif isinstance(rmodule, nn.Identity):
+        os = dims[-1][-1]
     else:
         raise AttributeError(f"get_cuts called for unknown module {rmodule.__class__}")
 
@@ -106,14 +121,12 @@ def get_reco_module(module: nn.Module, dims: List[Tuple[int]]):
         case components.PosEncoding:
             raise NotImplementedError("Transformers are not yet implemented")
 
-        case components.StripActivation:
-            raise NotImplementedError("Transformers are not yet implemented")
-
-        case components.Rearrange:
-            raise NotImplementedError("Transformers are not yet implemented")
-
         # convolutions
         case nn.Conv1d | nn.Conv2d | nn.Conv3d:
+            if not isinstance(module.padding[0], int):
+                raise NotImplementedError(
+                    "Padding is specififed other than through an integer. This is not supported yet")
+
             rmodule = CC[module.__class__](dims[-1][1], dims[-2][1],
                                            kernel_size=module.kernel_size,
                                            stride=module.stride,
@@ -137,6 +150,13 @@ def get_reco_module(module: nn.Module, dims: List[Tuple[int]]):
                                            stride=kernel_size)
             return nn.Sequential(*get_cuts(rmodule, dims))
 
+        case nn.AvgPool1d | nn.AvgPool2d | nn.AvgPool3d:
+            kernel_size = int(dims[-2][-1] / dims[-1][-1])
+            rmodule = CA[module.__class__](dims[-1][1], dims[-2][1],
+                                           kernel_size=kernel_size,
+                                           stride=kernel_size)
+            return nn.Sequential(*get_cuts(rmodule, dims))
+
         # convolution transposed
         case nn.ConvTranspose1d | nn.ConvTranspose2d | nn.ConvTranspose3d:
             rmodule = CCINV[module.__class__](dims[-1][1], dims[-2][1],
@@ -148,14 +168,14 @@ def get_reco_module(module: nn.Module, dims: List[Tuple[int]]):
 
         # flatten & unflatten layers
         case nn.Flatten:
-            return nn.Unflatten(1, dims[-1])
+            return nn.Unflatten(1, dims[-2][1:])
 
         case nn.Unflatten:
             return nn.Flatten(1)
 
         # padding
-        case nn.CircularPad1d | nn.CircularPad2d | nn.CircularPad3d:
-            return nn.Identity()
+        case nn.CircularPad2d:
+            return nn.Sequential(*get_cuts(nn.Identity(), dims))
 
         # special activation functions
         case nn.LeakyReLU:
@@ -228,6 +248,10 @@ def get_conet_layout(model: Iterable[nn.Module], batch: torch.tensor, device: st
             if isinstance(module, WEIGHT_LAYERS) or isinstance(module, (nn.Flatten, nn.Unflatten)):
                 forward_temp, reco_temp = add2group(forward_groups, reco_groups, forward_temp, reco_temp)
                 reco_temp.append(get_reco_module(module, dimensions))
+
+            elif isinstance(module, PADDING_LAYERS):
+                reco_temp.append(get_reco_module(module, dimensions))
+
             else:
                 start = True
                 reco_temp.append(activation_function())
