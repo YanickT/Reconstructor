@@ -241,7 +241,7 @@ def get_conet_layout(model: Iterable[nn.Module], batch: torch.tensor, device: st
         else:
             # propagate through forward layer
             with torch.no_grad():
-                x = module(x)
+                x = module.to(device)(x)
                 dimensions.append(tuple(x.shape))
 
             # decide if temp layer is finished

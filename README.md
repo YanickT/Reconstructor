@@ -5,7 +5,7 @@
 
 # Reconstructions
 
-PyTorch utilities for constructing and training layer-wise reconstruction networks. The package takes a forward network, derives a corresponding set of approximate inverse modules, trains these inverse modules locally, and then uses them to reconstruct the input from intermediate representations.
+Predicting trainable hyperparameter configurations for untrained neural networks.
 
 The intended use case is the analysis of information accessibility in neural networks: if the representation after a layer still contains input-relevant structure, a reconstruction cascade with comparable local complexity should be able to recover it. If reconstructions collapse, become class-agnostic, or converge toward dataset-level averages, this indicates that the corresponding representation no longer makes the original information easily accessible to downstream layers.
 
