@@ -236,6 +236,7 @@ class ContraNetwork:
                         # filter for max pooling layers with 'return_indices' being True
                         if isinstance(x_, tuple):
                             x_, indices = x_
+                            output_size = x.shape
                             indices_flag = True
 
                     # detach to prevent any unnecessary gradients
@@ -243,10 +244,10 @@ class ContraNetwork:
                     if indices_flag:
                         # if this is true, c is an UnPoolConvTrans which requires the indices when called
                         if self.scaler is None:
-                            loss = torch.nn.functional.mse_loss(c((x_, indices)), x)
+                            loss = torch.nn.functional.mse_loss(c((x_, indices, output_size)), x)
                         else:
                             with torch.amp.autocast('cuda'):
-                                loss = torch.nn.functional.mse_loss(c((x_, indices)), x)
+                                loss = torch.nn.functional.mse_loss(c((x_, indices, output_size)), x)
                         indices_flag = False
 
                     else:
