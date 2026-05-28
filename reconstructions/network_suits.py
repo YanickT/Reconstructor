@@ -297,22 +297,25 @@ class ContraNetwork:
         images = [x_forward.detach().cpu()]
         with torch.no_grad():
             indices = {}
+            output_sizes = {}
             for i, f in enumerate(self.net):
                 if i >= len(self.conet):
                     break
+
                 # forward pass through the network
+                shape = x_forward.shape
+                x_forward = f(x_forward)
                 if isinstance(x_forward, tuple):
                     indices[i] = x_forward[1]
+                    output_sizes[i] = shape
                     x_forward = x_forward[0]
-
-                x_forward = f(x_forward)
 
                 # reconstruction
                 x_back = x_forward  # .detach()
                 for j in range(i, -1, -1):
 
-                    if hasattr(self.net[j], "return_indices") and f.return_indices:
-                        x_back = self.conet[j](x_back, indices[j])
+                    if j in indices:
+                        x_back = self.conet[j]((x_back, indices[j], output_sizes[j]))
                     else:
                         x_back = self.conet[j](x_back)
 
