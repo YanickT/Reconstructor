@@ -173,21 +173,24 @@ class UnPoolConvTrans(nn.Module):
         super().__init__()
         if stride is None:
             stride = kernel_size
-        pad = padding + 1
         if dim == 1:
-            self.unpool = nn.MaxUnpool1d(kernel_size, padding=pad, stride=stride)
-            self.convtr = nn.ConvTranspose1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
+            self.unpool = nn.MaxUnpool1d(kernel_size, padding=padding, stride=stride)
+            self.circpad = nn.CircularPad1d(kernel_size // 2)
+            self.convtr = nn.Conv1d(in_channels, out_channels, kernel_size=kernel_size, stride=1)
         elif dim == 2:
-            self.unpool = nn.MaxUnpool2d(kernel_size, padding=pad, stride=stride)
-            self.convtr = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
+            self.unpool = nn.MaxUnpool2d(kernel_size, padding=padding, stride=stride)
+            self.circpad = nn.CircularPad2d(kernel_size // 2)
+            self.convtr = nn.Conv2d(in_channels, out_channels, kernel_size=kernel_size, stride=1)
         elif dim == 3:
-            self.unpool = nn.MaxUnpool3d(kernel_size, padding=pad, stride=stride)
-            self.convtr = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
+            self.unpool = nn.MaxUnpool3d(kernel_size, padding=padding, stride=stride)
+            self.circpad = nn.CircularPad3d(kernel_size // 2)
+            self.convtr = nn.Conv3d(in_channels, out_channels, kernel_size=kernel_size, stride=1)
         else:
             raise NotImplementedError("UnpoolConvTrans not implemented for dim > 3")
 
     def forward(self, x):
-        x, indices = x
-        x = self.unpool(x, indices)
+        x, indices, output_size = x
+        x = self.unpool(x, indices, output_size=output_size)
+        x = self.circpad(x)
         x = self.convtr(x)
         return x
