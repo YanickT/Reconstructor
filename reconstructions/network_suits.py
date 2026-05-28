@@ -252,12 +252,7 @@ class ContraNetwork:
                     else:
                         # every other case
                         if self.scaler is None:
-                            try:
-                                loss = torch.nn.functional.mse_loss(c(x_), x)
-                            except Exception as e:
-                                print(f)
-                                print(c)
-                                raise e
+                            loss = torch.nn.functional.mse_loss(c(x_), x)
                         else:
                             with torch.amp.autocast('cuda'):
                                 loss = torch.nn.functional.mse_loss(c(x_), x)
