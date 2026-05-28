@@ -126,7 +126,6 @@ def get_reco_module(module: nn.Module, dims: List[Tuple[int]]):
             if not isinstance(module.padding[0], int):
                 raise NotImplementedError(
                     "Padding is specififed other than through an integer. This is not supported yet")
-
             rmodule = CC[module.__class__](dims[-1][1], dims[-2][1],
                                            kernel_size=module.kernel_size,
                                            stride=module.stride,
@@ -138,8 +137,10 @@ def get_reco_module(module: nn.Module, dims: List[Tuple[int]]):
         case nn.MaxPool1d | nn.MaxPool2d | nn.MaxPool3d:
             module.return_indices = True
             dim = int(module.__class__.__name__[-2])
-            rmodule = components.UnPoolConvTrans(dim, dims[-1][1], dims[-2][1], module.kernel_size, module.stride,
-                                                 module.padding)
+            rmodule = components.UnPoolConvTrans(dim, dims[-1][1], dims[-2][1],
+                                                 kernel_size=module.kernel_size,
+                                                 stride=module.stride,
+                                                 padding=module.padding)
             return nn.Sequential(*get_cuts(rmodule, dims))
 
         # adaptive pooling

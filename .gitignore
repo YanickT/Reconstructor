@@ -185,3 +185,5 @@ cython_debug/
 .egg*
 cifar*
 MNIST
+
+nas*

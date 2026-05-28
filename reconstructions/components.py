@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Any
 import torch
 import torch.nn as nn
 from einops import rearrange
@@ -173,20 +173,21 @@ class UnPoolConvTrans(nn.Module):
         super().__init__()
         if stride is None:
             stride = kernel_size
-        pad = 0 if padding == 0 else padding - 1
+        pad = padding + 1
         if dim == 1:
-            self.unpool = nn.MaxUnpool1d(kernel_size, padding, stride)
-            self.convtr = nn.ConvTranspose1d(in_channels, out_channels, kernel_size, stride, pad)
+            self.unpool = nn.MaxUnpool1d(kernel_size, padding=pad, stride=stride)
+            self.convtr = nn.ConvTranspose1d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
         elif dim == 2:
-            self.unpool = nn.MaxUnpool2d(kernel_size, padding, stride)
-            self.convtr = nn.ConvTranspose2d(in_channels, out_channels, kernel_size, stride, pad)
+            self.unpool = nn.MaxUnpool2d(kernel_size, padding=pad, stride=stride)
+            self.convtr = nn.ConvTranspose2d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
         elif dim == 3:
-            self.unpool = nn.MaxUnpool3d(kernel_size, padding, stride)
-            self.convtr = nn.ConvTranspose3d(in_channels, out_channels, kernel_size, stride, pad)
+            self.unpool = nn.MaxUnpool3d(kernel_size, padding=pad, stride=stride)
+            self.convtr = nn.ConvTranspose3d(in_channels, out_channels, kernel_size=kernel_size, stride=stride)
         else:
             raise NotImplementedError("UnpoolConvTrans not implemented for dim > 3")
 
-    def forward(self, x, indices):
+    def forward(self, x):
+        x, indices = x
         x = self.unpool(x, indices)
         x = self.convtr(x)
         return x
