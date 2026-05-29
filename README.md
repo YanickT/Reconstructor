@@ -4,6 +4,8 @@
 
 
 # Reconstructions
+TODO:
+the scaler are not working good in the train functions in conet and nas
 
 Predicting trainable hyperparameter configurations for untrained neural networks.
 
