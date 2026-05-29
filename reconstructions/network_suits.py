@@ -11,22 +11,20 @@ class Network:
     Resembles a classical discriminator network with either softmax or sigmoid output (no multi-label)
     """
 
-    def __init__(self, model: nn.Module, lr: float = 1e-3, f_loss: Optional[Callable] = None, device: str = "cpu"):
+    def __init__(self, model: nn.Module, lr: float = 1e-3, f_loss: Optional[Callable] = None,
+                 device: torch.device = torch.device("cpu")):
         """
         Initialize the network suit for the given model
         :param model: nn.Module = model to be trained
         :param lr: float = learning rate
         :param f: Callable = loss function
-        :param device: str = device to perform calculations on
+        :param device: torch.device = device to perform calculations on
         """
         self.lr = lr
         self.device = device
         self.model = model.to(self.device)
-        if torch.cuda.is_available() and device != "cpu":
-            self.scaler = torch.amp.GradScaler("cuda")
-        else:
-            warnings.warn("No GPU available, using CPU instead -> scaler deactivated")
-            self.scaler = None
+
+        self.scaler = torch.amp.GradScaler(self.device.type, enabled=(self.device.type == "cuda"))
 
         if f_loss is None:
             self.f = nn.functional.cross_entropy
@@ -57,38 +55,29 @@ class Network:
         t1 = time.time()
         for i in range(its):
             self.model.train()
-            torch.cuda.empty_cache()
             for index, (inp, out) in enumerate(train_data):
                 print(f"\r{index} / {len(train_data)}", end="")
                 o = out.to(self.device, non_blocking=True)
-                inp_ = inp.to(self.device, non_blocking=True).to(memory_format=torch.channels_last)
+                inp_ = inp.to(self.device, non_blocking=True)  # .to(memory_format=torch.channels_last)
 
-                if self.scaler is None:
+                with torch.amp.autocast(self.device.type):
                     x = self.model(inp_)
                     loss = self.f(x, o)
-                    loss.backward()
-                    optimizer.step()
-                    optimizer.zero_grad()
 
-                else:
-                    with torch.amp.autocast('cuda'):
-                        x = self.model(inp_)
-                        loss = self.f(x, o)
-
-                    self.scaler.scale(loss).backward()
-                    self.scaler.step(optimizer)
-                    self.scaler.update()
-                    optimizer.zero_grad(set_to_none=True)
+                self.scaler.scale(loss).backward()
+                self.scaler.step(optimizer)
+                self.scaler.update()
+                optimizer.zero_grad(set_to_none=True)
 
             # evaluate on test data
             stats = self.eval(test_data, metric_fs)
             metrics.append(stats)
-            if stop_f(metrics):
+            if stop_f is not None and stop_f(metrics):
                 break
 
             if verbose:
                 print(f"\rTraining {(i + 1)} / {its}: {time.time() - t1} with")
-                print(f"\tMetrics: {[round(stat) for stat in stats]}")
+                print(f"\tMetrics: {[round(stat, 4) for stat in stats]}")
 
         if verbose:
             print(f"\nTraining done in {time.time() - t1}s")
@@ -104,20 +93,18 @@ class Network:
         """
         self.model.eval()
 
+        if metric_fs is None:
+            metric_fs = []
         metrics = []
+
         with torch.no_grad():
             for inp, out in test_data:
 
                 o = out.to(self.device, non_blocking=True)  # out.to(self.device)
-                inp_ = inp.to(self.device, non_blocking=True).to(memory_format=torch.channels_last)
-
-                if self.scaler is None:
+                inp_ = inp.to(self.device, non_blocking=True)  # .to(memory_format=torch.channels_last)
+                with torch.amp.autocast(self.device.type):
                     x = self.model(inp_)
                     loss = self.f(x, o)
-                else:
-                    with torch.amp.autocast('cuda'):
-                        x = self.model(inp_)
-                        loss = self.f(x, o)
 
                 metric_temp = [loss.cpu().item()]
                 for f in metric_fs:
@@ -134,11 +121,11 @@ class ContraNetwork:
     necessary
     """
 
-    def __init__(self, net: nn.Sequential, conet: nn.Sequential, device: Union[str, torch.device] = "cpu"):
+    def __init__(self, net: nn.Sequential, conet: nn.Sequential, device: torch.device = torch.device("cpu")):
         """
         Initalize the network based on the information given at net.
         :param net: Sequential = network to create reconstrution networks for
-        :param device: Union[str, torch.device] = device to perform calculations on
+        :param device: torch.device = device to perform calculations on
         """
         self.net = net.to(device)
 
@@ -149,11 +136,7 @@ class ContraNetwork:
         self.optimiers = [torch.optim.Adam(layer.parameters()) if list(layer.parameters()) else None for
                           layer in conet]
 
-        if torch.cuda.is_available() and device != "cpu":
-            self.scaler = torch.amp.GradScaler("cuda")
-        else:
-            warnings.warn("No GPU available, using CPU instead -> scaler deactivated")
-            self.scaler = None
+        self.scaler = torch.amp.GradScaler(self.device.type, enabled=(self.device.type == "cuda"))
 
     def __len__(self) -> int:
         """
@@ -219,19 +202,17 @@ class ContraNetwork:
         self.set_train_mode()
         indices_flag = False
         c_steps = 0
-        for i in range(its):
 
+        for i in range(its):
             if verbose:
                 print(f"\nEpoch: {i} / {its}")
-
             for counter, (inp, _) in enumerate(train_data):
-                # print(f"\r{counter} / {len(train_data)}", end="")
                 x = inp.to(self.device)
-
-                for f, c, opt in zip(self.net, self.conet, self.optimiers):
-                    # forward pass
-                    with torch.no_grad():
-                        x_ = f(x)
+                with torch.amp.autocast(self.device.type):
+                    for f, c, opt in zip(self.net, self.conet, self.optimiers):
+                        # forward pass
+                        with torch.no_grad():
+                            x_ = f(x)
 
                         # filter for max pooling layers with 'return_indices' being True
                         if isinstance(x_, tuple):
@@ -239,39 +220,24 @@ class ContraNetwork:
                             output_size = x.shape
                             indices_flag = True
 
-                    # detach to prevent any unnecessary gradients
-                    x_ = x_.detach()
-                    if indices_flag:
-                        # if this is true, c is an UnPoolConvTrans which requires the indices when called
-                        if self.scaler is None:
+                        # detach to prevent any unnecessary gradients
+                        x_ = x_.detach()
+                        if indices_flag:
+                            # if this is true, c is an UnPoolConvTrans which requires the indices when called
                             loss = torch.nn.functional.mse_loss(c((x_, indices, output_size)), x)
+                            indices_flag = False
                         else:
-                            with torch.amp.autocast('cuda'):
-                                loss = torch.nn.functional.mse_loss(c((x_, indices, output_size)), x)
-                        indices_flag = False
-
-                    else:
-                        # every other case
-                        if self.scaler is None:
+                            # every other case
                             loss = torch.nn.functional.mse_loss(c(x_), x)
-                        else:
-                            with torch.amp.autocast('cuda'):
-                                loss = torch.nn.functional.mse_loss(c(x_), x)
 
-                    if not (opt is None):
-                        if self.scaler is None:
-                            loss.backward()
-                            opt.step()
-                            opt.zero_grad()
-
-                        else:
+                        if not (opt is None):
                             self.scaler.scale(loss).backward()
                             self.scaler.step(opt)
                             self.scaler.update()
                             opt.zero_grad(set_to_none=True)
 
-                    # override old x
-                    x = x_
+                        # override old x
+                        x = x_
 
                 if steps is not None:
                     c_steps += 1
