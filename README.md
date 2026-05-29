@@ -10,7 +10,7 @@ Predicting trainable hyperparameter configurations for untrained neural networks
 The intended use case is the analysis of information accessibility in neural networks: if the representation after a layer still contains input-relevant structure, a reconstruction cascade with comparable local complexity should be able to recover it. If reconstructions collapse, become class-agnostic, or converge toward dataset-level averages, this indicates that the corresponding representation no longer makes the original information easily accessible to downstream layers.
 
 ## Typical workflow
-The ```example.ipynb```.notebook provides code examples for MLPs on MNIST and CNNs on CIFAR10. 
+The ```hyperparameter_search.ipynb```.notebook provides code examples for MLPs on MNIST and CNNs on CIFAR10. 
 The general workflow is as follows:
 1. Define a normal PyTorch model.
 2. Pass an example batch to `get_conet_layout` to derive reconstruction-compatible forward blocks and inverse blocks.

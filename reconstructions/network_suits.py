@@ -60,7 +60,10 @@ class Network:
                 o = out.to(self.device, non_blocking=True)
                 inp_ = inp.to(self.device, non_blocking=True)  # .to(memory_format=torch.channels_last)
 
-                with torch.amp.autocast(self.device.type):
+                with torch.amp.autocast(
+                        device_type=self.device.type,
+                        enabled=(self.device.type == "cuda")
+                ):
                     x = self.model(inp_)
                     loss = self.f(x, o)
 
@@ -102,7 +105,10 @@ class Network:
 
                 o = out.to(self.device, non_blocking=True)  # out.to(self.device)
                 inp_ = inp.to(self.device, non_blocking=True)  # .to(memory_format=torch.channels_last)
-                with torch.amp.autocast(self.device.type):
+                with torch.amp.autocast(
+                        device_type=self.device.type,
+                        enabled=(self.device.type == "cuda")
+                ):
                     x = self.model(inp_)
                     loss = self.f(x, o)
 
@@ -208,7 +214,10 @@ class ContraNetwork:
                 print(f"\nEpoch: {i} / {its}")
             for counter, (inp, _) in enumerate(train_data):
                 x = inp.to(self.device)
-                with torch.amp.autocast(self.device.type):
+                with torch.amp.autocast(
+                        device_type=self.device.type,
+                        enabled=(self.device.type == "cuda")
+                ):
                     for f, c, opt in zip(self.net, self.conet, self.optimiers):
                         # forward pass
                         with torch.no_grad():
