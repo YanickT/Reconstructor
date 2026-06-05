@@ -118,6 +118,30 @@ class Cut(nn.Module):
             raise NotImplementedError(f"Cutting for {self.d}D is not yet defined")
 
 
+class StripActivation(nn.Module):
+    """
+    Layer for striping the Activation in positional encoding in transformers
+    """
+
+    def forward(self, x):
+        return x[:, 0]
+
+
+class Rearrange(nn.Module):
+
+    def __init__(self, pattern: str, **kwargs):
+        super().__init__()
+        self.pattern = pattern
+        self.kwargs = kwargs
+
+    def __repr__(self):
+        add = ", " + ", ".join([f"{k}={v}" for k, v in self.kwargs.items()]) if self.kwargs else ""
+        return f"Rearrange({self.pattern}" + add + ")"
+
+    def forward(self, x):
+        return rearrange(x, self.pattern, **self.kwargs)
+
+
 ########################################################################################################################
 # Weight Layers
 
@@ -155,17 +179,55 @@ class PosEncoding(nn.Module):
         self.lss = lss  # latent space size
 
         self.cls_token = nn.Parameter(torch.randn(1, 1, self.lss))  # tensor(1, 1, lss)
-        # self.pos_embedding = nn.Parameter(torch.randn(1, np + 1, self.lss))  # tensor(1, np + 1, lss)
+        self.pos_embedding = nn.Parameter(torch.randn(1, np + 1, self.lss))  # tensor(1, np + 1, lss)
 
     def forward(self, x):  # x = tensor(bs, np, lss)
         cls_tokens = self.cls_token.expand(x.shape[0], -1, -1)  # tensor(bs, 1, lss)
         x = torch.cat((cls_tokens, x), dim=1)  # tensor(bs, np + 1, lss)
-        # x = x + self.pos_embedding  # tensor(bs, np + 1, lss)
+        x = x + self.pos_embedding  # tensor(bs, np + 1, lss)
         return x
+
+
+class ReStrip(nn.Module):
+
+    def __init__(self, lss, outsize, activation=nn.ReLU, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.outsize = outsize - 1
+
+        size = self.outsize * lss
+        self.miniconstr = nn.Sequential(
+            nn.Linear(lss, size),
+            activation(),
+            nn.Linear(size, size),
+            activation(),
+        )
+
+    def forward(self, x):
+        # x = (bs, lss) -> (bs, outsize + 1, lss)
+        x = x.unsqueeze(1)  # (bs, 1, lss)
+        pad = self.miniconstr(x)  # (bs, outsize * lss)
+        pad = pad.view(x.shape[0], self.outsize, x.shape[2])  # (bs, outsize, lss)
+        return torch.cat([x, pad], dim=1)
 
 
 ########################################################################################################################
 # Reconstruction Layers
+
+class RePosEncoding(nn.Module):
+
+    def __init__(self, pos_encoding_module):
+        super().__init__()
+        self.pem = pos_encoding_module
+
+    def forward(self, x):
+        # with torch.no_grad():
+        # remove positional encoding
+        x = x - self.pem.pos_embedding
+
+        # strip cls_token away
+        x = x[:, 1:]
+        return x
+
 
 class UnPoolConvTrans(nn.Module):
 
@@ -194,3 +256,45 @@ class UnPoolConvTrans(nn.Module):
         x = self.circpad(x)
         x = self.convtr(x)
         return x
+
+
+class ReAttention(nn.Module):
+
+    def __init__(self, attention_mdl, num_tokens):
+        super().__init__()
+        self.attn_mdl = attention_mdl
+
+        self.heads = self.attn_mdl.heads
+        self.lss = attention_mdl.lss
+        self.num_tokens = num_tokens
+
+        self.to_v = nn.Linear(self.lss, self.lss, bias=False)
+        self.to_out = nn.Linear(self.lss, self.lss)
+        size = self.heads * self.num_tokens * self.num_tokens
+        # size = 2048
+        self.inv_attn = nn.Sequential(
+            nn.Linear(size, size),
+            nn.LeakyReLU(),
+            nn.Linear(size, size),
+            nn.PReLU(size),
+            nn.Linear(size, size),
+            nn.PReLU(size),
+        )
+
+    def forward(self, x):
+        v = self.to_v(x)
+        v = rearrange(v, 'b n (h d) -> b h n d', h=self.heads)
+
+        # inverse attention
+        attn = self.attn_mdl.attn
+        attn = rearrange(attn, 'b h n d -> b (h n d)', h=self.heads)
+        # print(attn)
+        attn_inv = self.inv_attn(attn)
+        attn_inv = rearrange(attn_inv, 'b (h n d) -> b h n d',
+                             h=self.heads,
+                             n=self.num_tokens,
+                             d=self.num_tokens)
+
+        out = torch.matmul(attn_inv, v)
+        out = rearrange(out, 'b h n d -> b n (h d)')
+        return self.to_out(out)

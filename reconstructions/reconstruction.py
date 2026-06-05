@@ -5,6 +5,7 @@ import torch
 import torch.nn as nn
 
 import reconstructions.components as components
+import reconstructions.util as util
 from reconstructions.components import Parallel
 
 WEIGHT_LAYERS = (
@@ -27,8 +28,12 @@ WEIGHT_LAYERS = (
     nn.AdaptiveAvgPool2d,
     nn.AdaptiveAvgPool3d,
 
+    nn.LayerNorm,
+
     components.PosEncoding,
     components.Attention,
+    components.Rearrange,
+    components.StripActivation,
 )
 
 PADDING_LAYERS = (
@@ -116,10 +121,18 @@ def get_reco_module(module: nn.Module, dims: List[Tuple[int]]):
 
         # transformer stuff
         case components.Attention:
-            raise NotImplementedError("Transformers are not yet implemented")
+            return components.ReAttention(module, num_tokens=dims[-1][1])
 
         case components.PosEncoding:
-            raise NotImplementedError("Transformers are not yet implemented")
+            return components.RePosEncoding(module)
+
+        case components.StripActivation:
+            return components.ReStrip(dims[-1][1], dims[-2][1])
+
+        case components.Rearrange:
+            parts = module.pattern.split(" -> ")
+            hints = util.rearange_inversion_control(*parts, module.kwargs, dims[-2])
+            return components.Rearrange(" -> ".join(parts[::-1]), **hints)
 
         # convolutions
         case nn.Conv1d | nn.Conv2d | nn.Conv3d:
@@ -177,6 +190,10 @@ def get_reco_module(module: nn.Module, dims: List[Tuple[int]]):
         # padding
         case nn.CircularPad2d:
             return nn.Sequential(*get_cuts(nn.Identity(), dims))
+
+        # norms
+        case nn.LayerNorm:
+            return nn.LayerNorm(module.normalized_shape)
 
         # special activation functions
         case nn.LeakyReLU:
