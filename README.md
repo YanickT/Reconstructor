@@ -44,9 +44,6 @@ Please cite
 }
 ```
 
-## Core idea
-HIER CORE IDEA + IMAGES 
-
 ## Package layout
 ```text
 src/
